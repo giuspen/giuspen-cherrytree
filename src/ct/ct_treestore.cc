@@ -98,6 +98,16 @@ guint16 CtTreeIter::get_node_custom_icon_id() const
     return (*this) ? (*this)->get_value(_pColumns->colCustomIconId) : 0;
 }
 
+guint32 CtTreeIter::get_node_lock_id() const
+{
+    return (*this) ? (*this)->get_value(_pColumns->colNodeLockId) : 0;
+}
+
+void CtTreeIter::set_node_lock_id(const guint32 node_lock_id)
+{
+    (*this)->set_value(_pColumns->colNodeLockId, node_lock_id);
+}
+
 Glib::ustring CtTreeIter::get_node_name() const
 {
     return (*this) ? (*this)->get_value(_pColumns->colNodeName) : "";
@@ -183,6 +193,19 @@ Glib::RefPtr<Gsv::Buffer> CtTreeIter::get_node_text_buffer() const
         }
     }
     return rRetTextBuffer;
+}
+
+bool CtTreeIter::get_is_node_or_parent_locked(CtTreeIter& node) const
+{
+    CtTreeIter iter = *this;
+    while (iter != nullptr) {
+        if ((iter.get_node_lock_id() > 0) && (iter.get_node_lock_id() != (guint32) _pCtMainWin->get_ct_config()->userLockId)) {
+            node = iter;
+            return true;
+        }
+        iter = iter.parent();
+    } 
+    return false;
 }
 
 bool CtTreeIter::get_node_buffer_already_loaded() const
@@ -478,7 +501,8 @@ void CtTreeStore::text_view_apply_textbuffer(CtTreeIter& treeIter, CtTextView* p
     const bool node_is_rich_text = treeIter.get_node_is_rich_text();
     pTextView->set_spell_check(node_is_rich_text);
     pTextView->set_sensitive(true);
-    pTextView->set_editable(not treeIter.get_node_read_only());
+    CtTreeIter locked_node;
+    pTextView->set_editable((not treeIter.get_node_read_only()) && (not treeIter.get_is_node_or_parent_locked(locked_node)));
 
     for (CtAnchoredWidget* pCtAnchoredWidget : treeIter.get_anchored_widgets_fast()) {
         Glib::RefPtr<Gtk::TextChildAnchor> rChildAnchor = pCtAnchoredWidget->getTextChildAnchor();
@@ -576,6 +600,7 @@ void CtTreeStore::get_node_data(const Gtk::TreeIter& treeIter, CtNodeData& nodeD
     nodeData.isRO = row[_columns.colNodeRO];
     //row[_columns.rColPixbufAux] = ;
     nodeData.customIconId = row[_columns.colCustomIconId];
+    nodeData.lockId = row[_columns.colNodeLockId];
     nodeData.isBold = CtTreeIter::get_is_bold_from_pango_weight(row[_columns.colWeight]);
     nodeData.foregroundRgb24 = row[_columns.colForeground];
     nodeData.tsCreation = row[_columns.colTsCreation];
@@ -596,6 +621,7 @@ void CtTreeStore::update_node_data(const Gtk::TreeIter& treeIter, const CtNodeDa
     row[_columns.colNodeRO] = nodeData.isRO;
     //row[_columns.rColPixbufAux] = ;  // will be updated by update_node_aux_icon
     row[_columns.colCustomIconId] = (guint16)nodeData.customIconId;
+    row[_columns.colNodeLockId] = nodeData.lockId;
     row[_columns.colWeight] = CtTreeIter::get_pango_weight_from_is_bold(nodeData.isBold);
     row[_columns.colForeground] = nodeData.foregroundRgb24;
     row[_columns.colTsCreation] = nodeData.tsCreation;
